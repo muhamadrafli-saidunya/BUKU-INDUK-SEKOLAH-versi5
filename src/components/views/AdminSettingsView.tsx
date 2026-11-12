@@ -36,7 +36,7 @@ import { useSchool } from '../../context/SchoolContext';
 import { UserRole, RolePermissions, AdminUser } from '../../types';
 import { cn } from '../../lib/utils';
 import { ActiveTab } from '../layout/Sidebar';
-import { getMasaPengabdianGuru } from '../../utils/excelTeacherHelper';
+import { getMasaPengabdianGuru, getMasaPengabdianDetail } from '../../utils/excelTeacherHelper';
 
 interface AdminSettingsViewProps {
   setActiveTab: (tab: ActiveTab) => void;
@@ -670,12 +670,24 @@ export const AdminSettingsView: React.FC<AdminSettingsViewProps> = ({
                       </td>
                       <td className="p-3">
                         <div className="font-semibold text-slate-700 dark:text-slate-300">{user.jabatan}</div>
-                        {user.tmtTugas && (
-                          <div className="text-[10px] text-amber-700 dark:text-amber-400 font-bold flex items-center gap-1 mt-0.5">
-                            <Clock className="w-3 h-3" />
-                            <span>Masa Kerja: {getMasaPengabdianGuru(user)}</span>
-                          </div>
-                        )}
+                        {(() => {
+                          const detail = getMasaPengabdianDetail(user);
+                          if (!detail) return null;
+                          return (
+                            <div className="flex items-center gap-1.5 mt-1">
+                              <span className={cn(
+                                "text-[9.5px] font-bold px-1.5 py-0.2 rounded border flex items-center gap-1 shadow-2xs",
+                                detail.tier.bgClass,
+                                detail.tier.textClass,
+                                detail.tier.borderClass
+                              )}>
+                                <Clock className="w-2.5 h-2.5" />
+                                <span>{detail.formatted}</span>
+                                <span className="opacity-75 uppercase">({detail.tier.shortBadge})</span>
+                              </span>
+                            </div>
+                          );
+                        })()}
                       </td>
                       <td className="p-3">
                         <span className={cn(

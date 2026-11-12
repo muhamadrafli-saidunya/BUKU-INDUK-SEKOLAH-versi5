@@ -56,7 +56,8 @@ import {
   isTeacherMutasiKeluar,
   isTeacherPensiun,
   calculateMasaPengabdian,
-  getMasaPengabdianGuru
+  getMasaPengabdianGuru,
+  getMasaPengabdianDetail
 } from '../../utils/excelTeacherHelper';
 
 interface DataGuruViewProps {
@@ -1354,17 +1355,88 @@ export const DataGuruView: React.FC<DataGuruViewProps> = ({
                 )}
 
                 {/* Detail fields */}
-                <div className="mt-4 pt-3 border-t border-slate-100 dark:border-slate-800/80 space-y-2 text-xs">
-                  {/* Masa Pengabdian / Mengajar di SDN 006 */}
-                  <div className="flex items-center justify-between py-1 px-2.5 rounded-xl bg-amber-50/80 dark:bg-amber-950/40 border border-amber-200/70 dark:border-amber-900/50">
-                    <span className="text-slate-700 dark:text-slate-300 font-semibold flex items-center gap-1.5 text-[11px]">
-                      <Clock className="w-3.5 h-3.5 text-amber-600 dark:text-amber-400 shrink-0" />
-                      <span>Lama Mengabdi di SDN 006:</span>
-                    </span>
-                    <span className="font-extrabold text-amber-900 dark:text-amber-300 text-[11px] text-right">
-                      {getMasaPengabdianGuru(teacher)}
-                    </span>
-                  </div>
+                <div className="mt-4 pt-3 border-t border-slate-100 dark:border-slate-800/80 space-y-2.5 text-xs">
+                  {/* Indikator Visual Durasi Pengabdian SDN 006 */}
+                  {(() => {
+                    const pengabdian = getMasaPengabdianDetail(teacher);
+                    if (!pengabdian) {
+                      return (
+                        <div className="flex items-center justify-between py-1.5 px-2.5 rounded-xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700/60 text-xs">
+                          <span className="text-slate-400 font-medium flex items-center gap-1.5 text-[11px]">
+                            <Clock className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+                            <span>Pengabdian SDN 006:</span>
+                          </span>
+                          <span className="font-medium text-slate-400 text-[10.5px] italic">
+                            Belum diatur
+                          </span>
+                        </div>
+                      );
+                    }
+
+                    const { tier, formatted, totalMonths, isCompleted } = pengabdian;
+                    return (
+                      <div className={cn(
+                        "p-2.5 rounded-xl border transition-all space-y-1.5",
+                        tier.bgClass,
+                        tier.borderClass
+                      )}>
+                        {/* Top Header Label */}
+                        <div className="flex items-center justify-between gap-1">
+                          <div className="flex items-center gap-1.5 min-w-0">
+                            <span className="p-1 rounded-md bg-white/80 dark:bg-slate-900/80 shadow-2xs shrink-0">
+                              {tier.tier === 'paripurna' || tier.tier === 'utama' ? (
+                                <Award className={cn("w-3.5 h-3.5", tier.textClass)} />
+                              ) : tier.tier === 'madya' || tier.tier === 'pratama' ? (
+                                <Clock className={cn("w-3.5 h-3.5", tier.textClass)} />
+                              ) : (
+                                <Sparkles className={cn("w-3.5 h-3.5", tier.textClass)} />
+                              )}
+                            </span>
+                            <span className="text-[10.5px] font-bold text-slate-700 dark:text-slate-200 truncate">
+                              Pengabdian di SDN 006
+                            </span>
+                          </div>
+                          <span className={cn(
+                            "px-2 py-0.5 rounded-md text-[9.5px] font-extrabold uppercase tracking-wide border shadow-2xs shrink-0",
+                            tier.bgClass,
+                            tier.textClass,
+                            tier.borderClass
+                          )}>
+                            {tier.shortBadge}
+                          </span>
+                        </div>
+
+                        {/* Main Duration Metric */}
+                        <div className="flex items-baseline justify-between pt-0.5">
+                          <div className={cn("text-xs font-black tracking-tight flex items-baseline gap-1", tier.textClass)}>
+                            <span>{formatted}</span>
+                            {isCompleted && (
+                              <span className="text-[9.5px] font-bold px-1.5 py-0.2 rounded bg-slate-200/80 dark:bg-slate-800 text-slate-700 dark:text-slate-300">
+                                Purna
+                              </span>
+                            )}
+                          </div>
+                          <span className="text-[9.5px] font-semibold text-slate-500 dark:text-slate-400 font-mono">
+                            {totalMonths} Bulan
+                          </span>
+                        </div>
+
+                        {/* Visual Progress Bar to Milestones */}
+                        <div className="space-y-0.5">
+                          <div className="w-full bg-slate-200/90 dark:bg-slate-800/90 rounded-full h-1.5 overflow-hidden">
+                            <div 
+                              className={cn("h-full rounded-full transition-all duration-700", tier.progressBarColor)} 
+                              style={{ width: `${Math.max(6, Math.min(100, tier.progressPercent))}%` }} 
+                            />
+                          </div>
+                          <div className="flex items-center justify-between text-[9px] text-slate-500 dark:text-slate-400">
+                            <span>TMT: {formatIndonesianDate(teacher.tmtTugas || '')}</span>
+                            <span>{isCompleted ? 'Purna Tugas' : 'Aktif Berjalan'}</span>
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })()}
 
                   <div className="flex items-center justify-between">
                     <span className="text-slate-400 font-medium">NIP / NUPTK:</span>
@@ -1891,12 +1963,21 @@ export const DataGuruView: React.FC<DataGuruViewProps> = ({
                       <label className="block font-bold text-slate-700 dark:text-slate-300">
                         TMT Tugas di SDN 006
                       </label>
-                      {formData.tmtTugas && (
-                        <span className="text-[10px] font-extrabold px-2 py-0.5 rounded-md bg-amber-100 dark:bg-amber-950 text-amber-900 dark:text-amber-300 border border-amber-300 dark:border-amber-800 flex items-center gap-1">
-                          <Clock className="w-3 h-3 text-amber-600" />
-                          <span>Lama Mengabdi: {calculateMasaPengabdian(formData.tmtTugas)?.formatted || '-'}</span>
-                        </span>
-                      )}
+                      {(() => {
+                        const res = calculateMasaPengabdian(formData.tmtTugas);
+                        if (!res) return null;
+                        return (
+                          <span className={cn(
+                            "text-[10px] font-extrabold px-2 py-0.5 rounded-md border flex items-center gap-1 shadow-2xs",
+                            res.tier.bgClass,
+                            res.tier.textClass,
+                            res.tier.borderClass
+                          )}>
+                            <Clock className="w-3 h-3" />
+                            <span>{res.formatted} ({res.tier.shortBadge})</span>
+                          </span>
+                        );
+                      })()}
                     </div>
                     <input
                       type="date"
@@ -2841,10 +2922,27 @@ export const DataGuruView: React.FC<DataGuruViewProps> = ({
                         {selectedTeacherForDetail.pangkatGolongan}
                       </span>
                     )}
-                    <span className="px-2.5 py-0.5 rounded-full text-[10px] font-extrabold bg-amber-100/90 dark:bg-amber-950/80 text-amber-900 dark:text-amber-200 border border-amber-300 dark:border-amber-800 flex items-center gap-1 shadow-2xs">
-                      <Clock className="w-3 h-3 text-amber-600 dark:text-amber-400" />
-                      <span>Lama Mengabdi: {getMasaPengabdianGuru(selectedTeacherForDetail)}</span>
-                    </span>
+                    {(() => {
+                      const detail = getMasaPengabdianDetail(selectedTeacherForDetail);
+                      if (!detail) return null;
+                      const { tier, formatted } = detail;
+                      return (
+                        <span className={cn(
+                          "px-2.5 py-0.5 rounded-full text-[10px] font-extrabold border flex items-center gap-1 shadow-2xs",
+                          tier.bgClass,
+                          tier.textClass,
+                          tier.borderClass
+                        )}>
+                          {tier.tier === 'paripurna' || tier.tier === 'utama' ? (
+                            <Award className="w-3 h-3 shrink-0" />
+                          ) : (
+                            <Clock className="w-3 h-3 shrink-0" />
+                          )}
+                          <span>Mengabdi: {formatted}</span>
+                          <span className="opacity-75 font-semibold text-[9px] uppercase">({tier.shortBadge})</span>
+                        </span>
+                      );
+                    })()}
                   </div>
 
                   <h3 className="text-lg font-black text-slate-900 dark:text-slate-100">
@@ -2879,6 +2977,131 @@ export const DataGuruView: React.FC<DataGuruViewProps> = ({
                   </div>
                 </div>
               </div>
+
+              {/* Indikator Visual Masa Pengabdian SDN 006 */}
+              {(() => {
+                const detail = getMasaPengabdianDetail(selectedTeacherForDetail);
+                if (!detail) {
+                  return (
+                    <div className="p-3.5 rounded-2xl bg-slate-50 dark:bg-slate-800/40 border border-slate-200 dark:border-slate-700 flex items-center justify-between text-xs">
+                      <div className="flex items-center gap-2 text-slate-500 dark:text-slate-400">
+                        <Clock className="w-4 h-4 text-slate-400" />
+                        <span>Indikator Pengabdian di SDN 006:</span>
+                      </div>
+                      <span className="text-[11px] font-semibold text-slate-400 italic">
+                        Belum diatur TMT Tugas di SDN 006
+                      </span>
+                    </div>
+                  );
+                }
+
+                const { tier, formatted, totalMonths, years, months, isCompleted } = detail;
+
+                return (
+                  <div className={cn(
+                    "p-4 rounded-2xl border shadow-xs space-y-3",
+                    tier.bgClass,
+                    tier.borderClass
+                  )}>
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-slate-200/70 dark:border-slate-700/70">
+                      <div className="flex items-center gap-3">
+                        <div className="w-10 h-10 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 flex items-center justify-center shadow-xs shrink-0">
+                          {tier.tier === 'paripurna' || tier.tier === 'utama' ? (
+                            <Award className={cn("w-5 h-5", tier.textClass)} />
+                          ) : tier.tier === 'madya' || tier.tier === 'pratama' ? (
+                            <Clock className={cn("w-5 h-5", tier.textClass)} />
+                          ) : (
+                            <Sparkles className={cn("w-5 h-5", tier.textClass)} />
+                          )}
+                        </div>
+                        <div>
+                          <div className="flex flex-wrap items-center gap-2">
+                            <h4 className="font-black text-xs text-slate-900 dark:text-slate-100 uppercase tracking-wider">
+                              Indikator Durasi Pengabdian SDN 006
+                            </h4>
+                            <span className={cn(
+                              "px-2.5 py-0.5 rounded-full text-[10px] font-extrabold uppercase border shadow-2xs",
+                              tier.bgClass,
+                              tier.textClass,
+                              tier.borderClass
+                            )}>
+                              {tier.badgeTitle}
+                            </span>
+                          </div>
+                          <p className="text-[11px] text-slate-600 dark:text-slate-400 mt-0.5">
+                            Dihitung otomatis dari <strong>TMT Tugas di SDN 006</strong> ({formatIndonesianDate(selectedTeacherForDetail.tmtTugas || '')})
+                          </p>
+                        </div>
+                      </div>
+
+                      <div className="text-left sm:text-right shrink-0">
+                        <div className="text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-0.5">
+                          Total Masa Kerja
+                        </div>
+                        <span className={cn(
+                          "inline-block font-black text-base px-3.5 py-1 rounded-xl bg-white dark:bg-slate-900 border shadow-xs tracking-tight",
+                          tier.textClass,
+                          tier.borderClass
+                        )}>
+                          {formatted}
+                        </span>
+                      </div>
+                    </div>
+
+                    {/* Breakdown 4 Kolom */}
+                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5 text-center">
+                      <div className="p-2.5 rounded-xl bg-white/80 dark:bg-slate-900/80 border border-slate-200/80 dark:border-slate-800">
+                        <div className="text-[9.5px] text-slate-400 font-bold uppercase tracking-wider">Masa Tahun</div>
+                        <div className="text-base font-black text-slate-900 dark:text-slate-100 mt-0.5">
+                          {years} <span className="text-[10px] font-normal text-slate-400">Tahun</span>
+                        </div>
+                      </div>
+                      <div className="p-2.5 rounded-xl bg-white/80 dark:bg-slate-900/80 border border-slate-200/80 dark:border-slate-800">
+                        <div className="text-[9.5px] text-slate-400 font-bold uppercase tracking-wider">Masa Bulan</div>
+                        <div className="text-base font-black text-slate-900 dark:text-slate-100 mt-0.5">
+                          {months} <span className="text-[10px] font-normal text-slate-400">Bulan</span>
+                        </div>
+                      </div>
+                      <div className="p-2.5 rounded-xl bg-white/80 dark:bg-slate-900/80 border border-slate-200/80 dark:border-slate-800">
+                        <div className="text-[9.5px] text-slate-400 font-bold uppercase tracking-wider">Total Akumulasi</div>
+                        <div className="text-base font-black text-slate-900 dark:text-slate-100 mt-0.5">
+                          {totalMonths} <span className="text-[10px] font-normal text-slate-400">Bln</span>
+                        </div>
+                      </div>
+                      <div className="p-2.5 rounded-xl bg-white/80 dark:bg-slate-900/80 border border-slate-200/80 dark:border-slate-800 flex flex-col justify-center">
+                        <div className="text-[9.5px] text-slate-400 font-bold uppercase tracking-wider">Status Tugas</div>
+                        <div className={cn(
+                          "text-[11px] font-black mt-0.5",
+                          isCompleted ? "text-slate-700 dark:text-slate-300" : "text-emerald-700 dark:text-emerald-400"
+                        )}>
+                          {isCompleted ? 'Purna Tugas' : 'Aktif Mengabdi'}
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Progress Bar Milestone */}
+                    <div className="space-y-1.5 pt-1">
+                      <div className="flex justify-between items-center text-[10px] font-semibold text-slate-600 dark:text-slate-300">
+                        <span className="font-bold">Milestone Pengabdian SDN 006:</span>
+                        <span className="font-mono text-slate-500">{tier.progressPercent}% dari Karir Penuh (30 Tahun)</span>
+                      </div>
+                      <div className="w-full bg-slate-200 dark:bg-slate-800 rounded-full h-2 overflow-hidden p-0.5">
+                        <div 
+                          className={cn("h-full rounded-full transition-all duration-700", tier.progressBarColor)} 
+                          style={{ width: `${Math.max(5, Math.min(100, tier.progressPercent))}%` }} 
+                        />
+                      </div>
+                      <div className="flex justify-between text-[9px] text-slate-400 font-mono">
+                        <span>Awal (0 Thn)</span>
+                        <span>Pratama (1-4 Thn)</span>
+                        <span>Madya (5-9 Thn)</span>
+                        <span>Utama (10-19 Thn)</span>
+                        <span>Paripurna (≥20 Thn)</span>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })()}
 
               {/* 1. Identitas Pokok */}
               <div className="p-4 rounded-2xl bg-white dark:bg-slate-800/40 border border-slate-200 dark:border-slate-700/80 space-y-3">
@@ -2972,28 +3195,59 @@ export const DataGuruView: React.FC<DataGuruViewProps> = ({
                       {selectedTeacherForDetail.tmtTugas ? formatIndonesianDate(selectedTeacherForDetail.tmtTugas) : '-'}
                     </span>
                   </div>
-                  <div className="sm:col-span-2 flex justify-between items-center p-3 rounded-xl bg-amber-50/80 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-900/60 my-1">
-                    <div className="flex items-center gap-2.5">
-                      <div className="w-8 h-8 rounded-lg bg-amber-500/20 text-amber-700 dark:text-amber-300 flex items-center justify-center shrink-0">
-                        <Clock className="w-4 h-4 text-amber-600 dark:text-amber-400" />
-                      </div>
-                      <div>
-                        <div className="text-[11.5px] font-bold text-slate-900 dark:text-slate-100">
-                          Lama Mengabdi / Mengajar di SDN 006
+                  {(() => {
+                    const detail = getMasaPengabdianDetail(selectedTeacherForDetail);
+                    const tier = detail?.tier;
+                    return (
+                      <div className={cn(
+                        "sm:col-span-2 flex justify-between items-center p-3 rounded-xl border my-1 transition-all",
+                        tier ? cn(tier.bgClass, tier.borderClass) : "bg-amber-50/80 dark:bg-amber-950/40 border-amber-200 dark:border-amber-900/60"
+                      )}>
+                        <div className="flex items-center gap-2.5">
+                          <div className={cn(
+                            "w-8 h-8 rounded-lg flex items-center justify-center shrink-0 shadow-2xs",
+                            tier ? "bg-white dark:bg-slate-900" : "bg-amber-500/20 text-amber-700"
+                          )}>
+                            {tier?.tier === 'paripurna' || tier?.tier === 'utama' ? (
+                              <Award className={cn("w-4 h-4", tier?.textClass || "text-amber-600")} />
+                            ) : (
+                              <Clock className={cn("w-4 h-4", tier?.textClass || "text-amber-600")} />
+                            )}
+                          </div>
+                          <div>
+                            <div className="flex items-center gap-2">
+                              <span className="text-[11.5px] font-black text-slate-900 dark:text-slate-100">
+                                Lama Mengabdi / Mengajar di SDN 006
+                              </span>
+                              {tier && (
+                                <span className={cn(
+                                  "px-2 py-0.5 rounded text-[9.5px] font-extrabold uppercase border",
+                                  tier.bgClass,
+                                  tier.textClass,
+                                  tier.borderClass
+                                )}>
+                                  {tier.shortBadge}
+                                </span>
+                              )}
+                            </div>
+                            <div className="text-[10px] text-slate-500 dark:text-slate-400 mt-0.5">
+                              {selectedTeacherForDetail.tmtTugas 
+                                ? `Dihitung otomatis dari TMT Tugas: ${formatIndonesianDate(selectedTeacherForDetail.tmtTugas)}`
+                                : 'Belum diatur tanggal TMT Tugas di SDN 006'}
+                            </div>
+                          </div>
                         </div>
-                        <div className="text-[10px] text-slate-500 dark:text-slate-400">
-                          {selectedTeacherForDetail.tmtTugas 
-                            ? `Dihitung berdasarkan TMT Tugas (${formatIndonesianDate(selectedTeacherForDetail.tmtTugas)})`
-                            : 'Belum diatur tanggal TMT Tugas di SDN 006'}
+                        <div className="text-right shrink-0">
+                          <span className={cn(
+                            "font-black text-xs px-3 py-1.5 rounded-lg border inline-block shadow-2xs",
+                            tier ? cn("bg-white dark:bg-slate-900", tier.textClass, tier.borderClass) : "bg-amber-100 dark:bg-amber-900/60 text-amber-950 dark:text-amber-100 border-amber-300 dark:border-amber-700"
+                          )}>
+                            {getMasaPengabdianGuru(selectedTeacherForDetail)}
+                          </span>
                         </div>
                       </div>
-                    </div>
-                    <div className="text-right">
-                      <span className="font-extrabold text-xs px-3 py-1.5 rounded-lg bg-amber-100 dark:bg-amber-900/60 text-amber-950 dark:text-amber-100 border border-amber-300 dark:border-amber-700 inline-block shadow-2xs">
-                        {getMasaPengabdianGuru(selectedTeacherForDetail)}
-                      </span>
-                    </div>
-                  </div>
+                    );
+                  })()}
                 </div>
               </div>
 

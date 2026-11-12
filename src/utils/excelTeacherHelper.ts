@@ -95,6 +95,22 @@ export const isTeacherActive = (t: AdminUser | null | undefined): boolean => {
 };
 
 /**
+ * Kategori Tier / Tingkat Masa Pengabdian GTK di SDN 006
+ */
+export interface MasaPengabdianTierInfo {
+  tier: 'perintis' | 'pratama' | 'madya' | 'utama' | 'paripurna';
+  badgeTitle: string;        // e.g. "Pengabdian Utama (≥ 10 Thn)"
+  shortBadge: string;        // e.g. "Utama"
+  iconType: 'sparkles' | 'award' | 'medal' | 'crown';
+  bgClass: string;
+  textClass: string;
+  borderClass: string;
+  progressBarColor: string;
+  progressPercent: number;   // 0 - 100 based on standard 30-year milestone
+  description: string;
+}
+
+/**
  * Interface hasil perhitungan masa pengabdian / lama mengajar di SDN 006
  */
 export interface MasaPengabdianResult {
@@ -104,7 +120,86 @@ export interface MasaPengabdianResult {
   days: number;
   totalMonths: number;
   isCompleted: boolean;   // true jika sudah purna tugas / mutasi keluar / wafat
+  tier: MasaPengabdianTierInfo;
 }
+
+/**
+ * Menghitung tingkat tier pengabdian berdasarkan lama tahun dan bulan
+ */
+export const getMasaPengabdianTier = (years: number, months: number): MasaPengabdianTierInfo => {
+  const totalMonths = years * 12 + months;
+  // 30 tahun = 360 bulan (patokan milestone karir pengabdian)
+  const progressPercent = Math.min(100, Math.round((totalMonths / 360) * 100));
+
+  if (years >= 20) {
+    return {
+      tier: 'paripurna',
+      badgeTitle: 'Pengabdian Paripurna (≥20 Thn)',
+      shortBadge: 'Paripurna (≥20 Thn)',
+      iconType: 'crown',
+      bgClass: 'bg-purple-50 dark:bg-purple-950/60',
+      textClass: 'text-purple-800 dark:text-purple-300',
+      borderClass: 'border-purple-300 dark:border-purple-800',
+      progressBarColor: 'bg-purple-600 dark:bg-purple-500',
+      progressPercent,
+      description: 'Masa bakti kehormatan di atas 20 tahun di SDN 006'
+    };
+  }
+  if (years >= 10) {
+    return {
+      tier: 'utama',
+      badgeTitle: 'Pengabdian Utama (10-19 Thn)',
+      shortBadge: 'Utama (10-19 Thn)',
+      iconType: 'medal',
+      bgClass: 'bg-amber-50 dark:bg-amber-950/60',
+      textClass: 'text-amber-800 dark:text-amber-300',
+      borderClass: 'border-amber-300 dark:border-amber-800',
+      progressBarColor: 'bg-amber-500 dark:bg-amber-400',
+      progressPercent,
+      description: 'Masa bakti pengabdian utama 10 tahun atau lebih di SDN 006'
+    };
+  }
+  if (years >= 5) {
+    return {
+      tier: 'madya',
+      badgeTitle: 'Pengabdian Madya (5-9 Thn)',
+      shortBadge: 'Madya (5-9 Thn)',
+      iconType: 'award',
+      bgClass: 'bg-blue-50 dark:bg-blue-950/60',
+      textClass: 'text-blue-800 dark:text-blue-300',
+      borderClass: 'border-blue-300 dark:border-blue-800',
+      progressBarColor: 'bg-blue-600 dark:bg-blue-500',
+      progressPercent,
+      description: 'Masa bakti pengabdian madya 5 sampai 9 tahun di SDN 006'
+    };
+  }
+  if (years >= 1) {
+    return {
+      tier: 'pratama',
+      badgeTitle: 'Pengabdian Pratama (1-4 Thn)',
+      shortBadge: 'Pratama (1-4 Thn)',
+      iconType: 'award',
+      bgClass: 'bg-emerald-50 dark:bg-emerald-950/60',
+      textClass: 'text-emerald-800 dark:text-emerald-300',
+      borderClass: 'border-emerald-300 dark:border-emerald-800',
+      progressBarColor: 'bg-emerald-600 dark:bg-emerald-500',
+      progressPercent,
+      description: 'Masa bakti pengabdian pratama 1 sampai 4 tahun di SDN 006'
+    };
+  }
+  return {
+    tier: 'perintis',
+    badgeTitle: 'Pengabdian Awal (<1 Thn)',
+    shortBadge: 'Awal (<1 Thn)',
+    iconType: 'sparkles',
+    bgClass: 'bg-sky-50 dark:bg-sky-950/60',
+    textClass: 'text-sky-800 dark:text-sky-300',
+    borderClass: 'border-sky-300 dark:border-sky-800',
+    progressBarColor: 'bg-sky-500 dark:bg-sky-400',
+    progressPercent: Math.max(5, progressPercent),
+    description: 'Tenaga pendidik/pegawai dalam masa penugasan tahun pertama di SDN 006'
+  };
+};
 
 /**
  * Menghitung masa pengabdian / lama mengajar di SDN 006 berdasarkan "TMT Tugas di SDN 006" (tmtTugas).
@@ -134,6 +229,7 @@ export const calculateMasaPengabdian = (
 
   // Jika tanggal awal di masa depan dibandingkan tanggal akhir
   if (startDate > endDate) {
+    const tier = getMasaPengabdianTier(0, 0);
     return {
       formatted: 'Baru ditugaskan',
       years: 0,
@@ -141,6 +237,7 @@ export const calculateMasaPengabdian = (
       days: 0,
       totalMonths: 0,
       isCompleted,
+      tier,
     };
   }
 
@@ -174,6 +271,8 @@ export const calculateMasaPengabdian = (
     formatted = 'Kurang dari 1 Bulan';
   }
 
+  const tier = getMasaPengabdianTier(years, months);
+
   return {
     formatted,
     years,
@@ -181,6 +280,7 @@ export const calculateMasaPengabdian = (
     days,
     totalMonths,
     isCompleted,
+    tier,
   };
 };
 
@@ -198,6 +298,15 @@ export const getMasaPengabdianGuru = (t: AdminUser | null | undefined): string =
     return `${res.formatted} (Purna Tugas)`;
   }
   return res.formatted;
+};
+
+/**
+ * Helper detail lengkap untuk indikator visual masa pengabdian
+ */
+export const getMasaPengabdianDetail = (t: AdminUser | null | undefined): MasaPengabdianResult | null => {
+  if (!t || !t.tmtTugas || !t.tmtTugas.trim() || t.tmtTugas === '-') return null;
+  const endDate = t.tanggalWafat || t.tglKeluar || t.tanggalPensiun;
+  return calculateMasaPengabdian(t.tmtTugas, endDate);
 };
 
 export const TEACHER_EXCEL_HEADERS = [
