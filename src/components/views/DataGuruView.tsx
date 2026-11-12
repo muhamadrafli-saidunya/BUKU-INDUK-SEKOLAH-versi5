@@ -47,7 +47,8 @@ import { cn, formatIndonesianDate } from '../../lib/utils';
 import { KopSuratHeader } from '../layout/KopSuratHeader';
 import { CameraCaptureModal } from '../modals/CameraCaptureModal';
 import { ImportTeacherExcelModal } from '../modals/ImportTeacherExcelModal';
-import { compressImageFile } from '../../utils/imageCompressor';
+import { compressPasfotoFile } from '../../utils/imageCompressor';
+import { saveTeacherPhotoToIdb } from '../../utils/storageHelper';
 import { 
   downloadTeacherTemplateExcel, 
   exportTeachersToExcel, 
@@ -334,11 +335,17 @@ export const DataGuruView: React.FC<DataGuruViewProps> = ({
     setPhotoError(null);
 
     try {
-      const res = await compressImageFile(file, 800, 1000, 0.85);
+      // Compress to optimal passport photo 3x4 (400x533, ~25KB), high clarity and persists reliably
+      const res = await compressPasfotoFile(file, 400, 533, 0.82);
       setFormData(prev => ({
         ...prev,
         fotoUrl: res.dataUrl
       }));
+
+      // If already editing a specific teacher, also cache to dedicated IDB key immediately
+      if (editingTeacher && editingTeacher.id) {
+        saveTeacherPhotoToIdb(editingTeacher.id, res.dataUrl).catch(() => {});
+      }
     } catch (err: any) {
       setPhotoError(err?.message || 'Gagal memproses gambar foto.');
     } finally {
@@ -3621,6 +3628,9 @@ export const DataGuruView: React.FC<DataGuruViewProps> = ({
           onClose={() => setIsCameraModalOpen(false)}
           onCapture={(photoDataUrl) => {
             setFormData(prev => ({ ...prev, fotoUrl: photoDataUrl }));
+            if (editingTeacher && editingTeacher.id) {
+              saveTeacherPhotoToIdb(editingTeacher.id, photoDataUrl).catch(() => {});
+            }
             setPhotoError(null);
           }}
           title="Ambil Pasfoto Guru / PTK"

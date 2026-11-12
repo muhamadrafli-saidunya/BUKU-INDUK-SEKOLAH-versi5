@@ -399,14 +399,39 @@ export function persistStudentsResiliently(
 }
 
 /**
- * Strip heavy base64 profile pictures from teacher/staff records for ultra-compact localStorage backup,
+ * Save single teacher photo directly to dedicated IndexedDB store
+ */
+export async function saveTeacherPhotoToIdb(teacherId: string, photoDataUrl: string): Promise<void> {
+  if (!teacherId || !photoDataUrl) return;
+  try {
+    await idbSet(`gtk_photo_${teacherId}`, photoDataUrl);
+  } catch (err) {
+    console.warn('[storageHelper] Failed to save teacher photo to IDB:', err);
+  }
+}
+
+/**
+ * Get single teacher photo directly from dedicated IndexedDB store
+ */
+export async function getTeacherPhotoFromIdb(teacherId: string): Promise<string | null> {
+  if (!teacherId) return null;
+  try {
+    return await idbGet<string>(`gtk_photo_${teacherId}`);
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Strip heavy base64 profile pictures from teacher/staff records ONLY as extreme fallback for localStorage quota,
  * while IndexedDB retains 100% full-resolution photos without quota limits.
  */
 export function createLeanTeachersForLocalStorage(teachers: AdminUser[], ultraMode = false): AdminUser[] {
   return teachers.map((t) => {
     let lean = { ...t };
     if (lean.fotoUrl && lean.fotoUrl.startsWith('data:')) {
-      if (ultraMode || lean.fotoUrl.length > 8000) {
+      // In ultraMode or if single photo is abnormally large (>150KB), strip for localStorage cache only
+      if (ultraMode || lean.fotoUrl.length > 200000) {
         lean = {
           ...lean,
           fotoUrl: '',
@@ -419,42 +444,60 @@ export function createLeanTeachersForLocalStorage(teachers: AdminUser[], ultraMo
 
 /**
  * Save teachers & staff resiliently:
- * 1. Asynchronously into IndexedDB (persists all photos, custom fields without quota limits).
- * 2. Synchronously into localStorage as fast boot cache (automatically optimizes if photos are large).
- * Never throws QuotaExceededError and prevents teacher records from vanishing after closing app.
+ * 1. Persists individual photos in dedicated IndexedDB keys (`gtk_photo_${id}`) so they can NEVER be lost or overwritten by race conditions.
+ * 2. Asynchronously saves full list into IndexedDB ('admin_users').
+ * 3. Synchronously saves into localStorage for instant boot (keeping photos unless quota is strictly exceeded).
  */
 export function persistTeachersResiliently(
   storageKey: string,
   teachers: AdminUser[]
 ): void {
-  // 1. IndexedDB persistence (unlimited storage, full fidelity)
-  idbSet('admin_users', teachers).catch((err) => {
-    console.warn('[storageHelper] Failed to persist teachers to IndexedDB:', err);
+  // 1. Dedicated photo backup in IndexedDB for each teacher with a photo
+  teachers.forEach((t) => {
+    if (t.id && t.fotoUrl && t.fotoUrl.startsWith('data:')) {
+      idbSet(`gtk_photo_${t.id}`, t.fotoUrl).catch(() => {});
+    }
   });
 
-  // 2. LocalStorage persistence (fast synchronous startup cache)
-  try {
-    const hasHeavyImages = teachers.some(t => t.fotoUrl && t.fotoUrl.startsWith('data:') && t.fotoUrl.length > 8000);
+  // 2. IndexedDB persistence (unlimited storage, full fidelity)
+  // Merge with existing IDB photos if incoming teacher has empty photo to prevent accidental blanking
+  idbGet<AdminUser[]>('admin_users').then((existingIdbTeachers) => {
+    let toSave = teachers;
+    if (existingIdbTeachers && Array.isArray(existingIdbTeachers)) {
+      const existingMap = new Map(existingIdbTeachers.map(e => [e.id, e]));
+      toSave = teachers.map(t => {
+        if (!t.fotoUrl && existingMap.has(t.id)) {
+          const prev = existingMap.get(t.id);
+          if (prev?.fotoUrl && prev.fotoUrl.startsWith('data:')) {
+            return { ...t, fotoUrl: prev.fotoUrl };
+          }
+        }
+        return t;
+      });
+    }
+    return idbSet('admin_users', toSave);
+  }).catch((err) => {
+    console.warn('[storageHelper] Failed to persist teachers to IndexedDB:', err);
+    // Fallback direct set
+    idbSet('admin_users', teachers).catch(() => {});
+  });
 
-    if (hasHeavyImages || teachers.length > 20) {
-      const lean = createLeanTeachersForLocalStorage(teachers, false);
-      const leanSuccess = safeLocalStorageSet(storageKey, JSON.stringify(lean));
-      if (!leanSuccess) {
-        const ultraLean = createLeanTeachersForLocalStorage(teachers, true);
-        safeLocalStorageSet(storageKey, JSON.stringify(ultraLean));
-      }
-      return;
+  // 3. LocalStorage persistence
+  // FIRST: Save full teachers object including photos!
+  try {
+    const fullJson = JSON.stringify(teachers);
+    const success = safeLocalStorageSet(storageKey, fullJson);
+    if (success) {
+      return; // Succeeded! Full photos are cached in localStorage!
     }
 
-    const json = JSON.stringify(teachers);
-    const success = safeLocalStorageSet(storageKey, json);
-    if (!success) {
-      const lean = createLeanTeachersForLocalStorage(teachers, false);
-      const leanSuccess = safeLocalStorageSet(storageKey, JSON.stringify(lean));
-      if (!leanSuccess) {
-        const ultraLean = createLeanTeachersForLocalStorage(teachers, true);
-        safeLocalStorageSet(storageKey, JSON.stringify(ultraLean));
-      }
+    // Only if quota is exceeded, try graceful lean compression
+    console.warn('[storageHelper] LocalStorage full for teachers, attempting lean compression...');
+    const lean = createLeanTeachersForLocalStorage(teachers, false);
+    const leanSuccess = safeLocalStorageSet(storageKey, JSON.stringify(lean));
+    if (!leanSuccess) {
+      const ultraLean = createLeanTeachersForLocalStorage(teachers, true);
+      safeLocalStorageSet(storageKey, JSON.stringify(ultraLean));
     }
   } catch (err) {
     console.warn('[storageHelper] Failed to serialize teachers for localStorage:', err);
