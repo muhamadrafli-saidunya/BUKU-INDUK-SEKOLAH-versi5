@@ -29,12 +29,14 @@ import {
   Database,
   Upload,
   Cloud,
-  GraduationCap
+  GraduationCap,
+  Clock
 } from 'lucide-react';
 import { useSchool } from '../../context/SchoolContext';
 import { UserRole, RolePermissions, AdminUser } from '../../types';
 import { cn } from '../../lib/utils';
 import { ActiveTab } from '../layout/Sidebar';
+import { getMasaPengabdianGuru } from '../../utils/excelTeacherHelper';
 
 interface AdminSettingsViewProps {
   setActiveTab: (tab: ActiveTab) => void;
@@ -666,8 +668,14 @@ export const AdminSettingsView: React.FC<AdminSettingsViewProps> = ({
                           </div>
                         </div>
                       </td>
-                      <td className="p-3 font-semibold text-slate-700 dark:text-slate-300">
-                        {user.jabatan}
+                      <td className="p-3">
+                        <div className="font-semibold text-slate-700 dark:text-slate-300">{user.jabatan}</div>
+                        {user.tmtTugas && (
+                          <div className="text-[10px] text-amber-700 dark:text-amber-400 font-bold flex items-center gap-1 mt-0.5">
+                            <Clock className="w-3 h-3" />
+                            <span>Masa Kerja: {getMasaPengabdianGuru(user)}</span>
+                          </div>
+                        )}
                       </td>
                       <td className="p-3">
                         <span className={cn(

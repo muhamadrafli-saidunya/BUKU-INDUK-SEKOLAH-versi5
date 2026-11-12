@@ -94,6 +94,112 @@ export const isTeacherActive = (t: AdminUser | null | undefined): boolean => {
   return true;
 };
 
+/**
+ * Interface hasil perhitungan masa pengabdian / lama mengajar di SDN 006
+ */
+export interface MasaPengabdianResult {
+  formatted: string;       // Contoh: "11 Tahun 8 Bulan", "3 Tahun", "5 Bulan", "Kurang dari 1 Bulan"
+  years: number;
+  months: number;
+  days: number;
+  totalMonths: number;
+  isCompleted: boolean;   // true jika sudah purna tugas / mutasi keluar / wafat
+}
+
+/**
+ * Menghitung masa pengabdian / lama mengajar di SDN 006 berdasarkan "TMT Tugas di SDN 006" (tmtTugas).
+ * Dasar perhitungannya strictly dari field "TMT Tugas di SDN 006".
+ * Jika status guru sudah mutasi keluar, pensiun, atau meninggal dunia, perhitungan berhenti pada tanggal berakhir (tglKeluar / tanggalPensiun / tanggalWafat).
+ * Jika masih aktif, perhitungan berjalan sampai hari ini.
+ */
+export const calculateMasaPengabdian = (
+  tmtTugas?: string | null,
+  endDateStr?: string | null
+): MasaPengabdianResult | null => {
+  if (!tmtTugas || !tmtTugas.trim() || tmtTugas === '-') return null;
+
+  const startDate = new Date(tmtTugas);
+  if (isNaN(startDate.getTime())) return null;
+
+  let endDate = new Date();
+  let isCompleted = false;
+
+  if (endDateStr && endDateStr.trim() && endDateStr !== '-') {
+    const parsedEnd = new Date(endDateStr);
+    if (!isNaN(parsedEnd.getTime())) {
+      endDate = parsedEnd;
+      isCompleted = true;
+    }
+  }
+
+  // Jika tanggal awal di masa depan dibandingkan tanggal akhir
+  if (startDate > endDate) {
+    return {
+      formatted: 'Baru ditugaskan',
+      years: 0,
+      months: 0,
+      days: 0,
+      totalMonths: 0,
+      isCompleted,
+    };
+  }
+
+  let years = endDate.getFullYear() - startDate.getFullYear();
+  let months = endDate.getMonth() - startDate.getMonth();
+  let days = endDate.getDate() - startDate.getDate();
+
+  if (days < 0) {
+    months -= 1;
+    const prevMonthLastDay = new Date(endDate.getFullYear(), endDate.getMonth(), 0).getDate();
+    days += prevMonthLastDay;
+  }
+
+  if (months < 0) {
+    years -= 1;
+    months += 12;
+  }
+
+  const totalMonths = years * 12 + months;
+
+  let formatted = '';
+  if (years > 0 && months > 0) {
+    formatted = `${years} Tahun ${months} Bulan`;
+  } else if (years > 0) {
+    formatted = `${years} Tahun`;
+  } else if (months > 0) {
+    formatted = `${months} Bulan`;
+  } else if (days > 0) {
+    formatted = `${days} Hari`;
+  } else {
+    formatted = 'Kurang dari 1 Bulan';
+  }
+
+  return {
+    formatted,
+    years,
+    months,
+    days,
+    totalMonths,
+    isCompleted,
+  };
+};
+
+/**
+ * Helper ringkas untuk mendapatkan string lama mengabdi/mengajar dari objek AdminUser
+ * Dasar perhitungan: "TMT Tugas di SDN 006" (tmtTugas).
+ */
+export const getMasaPengabdianGuru = (t: AdminUser | null | undefined): string => {
+  if (!t || !t.tmtTugas || !t.tmtTugas.trim() || t.tmtTugas === '-') return '-';
+  // Jika pegawai keluar / pensiun / wafat, gunakan tanggal keluar / pensiun / wafat sebagai batas akhir pengabdian
+  const endDate = t.tanggalWafat || t.tglKeluar || t.tanggalPensiun;
+  const res = calculateMasaPengabdian(t.tmtTugas, endDate);
+  if (!res) return '-';
+  if (res.isCompleted) {
+    return `${res.formatted} (Purna Tugas)`;
+  }
+  return res.formatted;
+};
+
 export const TEACHER_EXCEL_HEADERS = [
   'No',
   'Nama Lengkap',
@@ -905,8 +1011,8 @@ export const parseExcelToTeachers = (
             tugasTendik: String(getVal('tugas tendik (khusus tendik)', 'tugas tendik', 'tugas tata usaha') || '').trim(),
             tugasTambahan: String(getVal('tugas tambahan') || '').trim(),
             status,
-            tmtTugas: normalizeExcelDate(getVal('tmt masuk / pengangkatan (yyyy-mm-dd)', 'tmt masuk', 'tmt tugas', 'tmt pengangkatan')),
-            tmtPengangkatan: normalizeExcelDate(getVal('tmt pengangkatan', 'tmt masuk / pengangkatan (yyyy-mm-dd)')),
+            tmtTugas: normalizeExcelDate(getVal('tmt tugas di sdn 006', 'tmt tugas sdn 006', 'tmt tugas', 'tmt masuk / pengangkatan (yyyy-mm-dd)', 'tmt masuk', 'tmt pengangkatan')),
+            tmtPengangkatan: normalizeExcelDate(getVal('tmt pengangkatan', 'tmt pengangkatan pertama', 'tmt masuk / pengangkatan (yyyy-mm-dd)')),
             
             // Mutasi Masuk
             isMutasiMasuk: status === 'Mutasi Masuk' || !!getVal('asal sekolah / instansi (mutasi masuk)', 'sekolah asal'),
